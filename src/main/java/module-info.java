@@ -1,6 +1,6 @@
 module com.github.marschall.siteawareldapsprovider {
 
-  requires java.naming;
+  requires transitive java.naming;
 
   exports com.github.marschall.siteawareldapsprovider;
 

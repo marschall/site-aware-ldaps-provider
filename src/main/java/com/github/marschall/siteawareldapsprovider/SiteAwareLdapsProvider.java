@@ -26,47 +26,75 @@ public final class SiteAwareLdapsProvider extends LdapDnsProvider {
   // https://docs.oracle.com/javase/8/docs/technotes/guides/jndi/jndi-ldap.html
   // https://bugs.openjdk.java.net/browse/JDK-8192975
 
-
-
   @Override
   public Optional<LdapDnsProviderResult> lookupEndpoints(String url, Map<?, ?> env) throws NamingException {
     // ldaps:///dc=example,dc=com
-    return Optional.empty();
+    String baseDn = getBaseDn(url); // TODO charsequence
+    String[] domainComponents = getDomainComponents(baseDn);
+    String domainName = getDomainName(domainComponents); // TODO charsequence
+    List<DnsRecord> records = lookupServiceRecords(domainComponents);
+    LdapDnsProviderResult result = toDnsProviderResult(domainName, baseDn, records);
+    return Optional.of(result);
   }
 
-  static String toServiceName(String url) throws NamingException {
+  static String getDomainName(String[] domainComponents) {
+    StringBuilder builderDomainName = new StringBuilder();
+    for (int i = 0; i < domainComponents.length; i++) {
+      if (i > 0) {
+        builderDomainName.append('.');
+      }
+      String domainComponent = domainComponents[i];
+      builderDomainName.append(domainComponent);
+    }
+    return builderDomainName.toString();
+  }
+
+  static String[] getDomainComponents(String baseDn) throws NamingException {
+    String[] parts = baseDn.split(",");
+    String[] domainComponents = new String[parts.length];
+    for (int i = 0; i < parts.length; i++) {
+      String domainComponent = parts[i];
+      if (!domainComponent.startsWith("dc=")) {
+        throw new NamingException("invalid domain component: " + domainComponent + " expecting dc=");
+      }
+      domainComponents[i] = domainComponent.substring("dc=".length(), domainComponent.length());
+    }
+    return domainComponents;
+  }
+
+  static String toServiceName(String[] domainComponents) throws NamingException {
     // ldap:///dc=example,dc=com
     // _ldap._tcp.example.com
-    if (!url.startsWith("ldaps:///")) {
-      throw new NamingException("invalid ldaps URL: " + url + " expecting ldaps:///");
-    }
     StringBuilder serviceName = new StringBuilder("_ldap._tcp");
-    String domain = url.substring("ldaps:///".length(), url.length());
-    String[] domainComponents = domain.split(",");
-    for (String domainComponend : domainComponents) {
-      if (!domainComponend.startsWith("dc=")) {
-        throw new NamingException("invalid ldaps URL: " + url + " expecting dc=");
-      }
+    for (String domainComponent : domainComponents) {
       serviceName.append('.');
-      serviceName.append(domainComponend, "dc=".length(), domainComponend.length());
+      serviceName.append(domainComponent);
     }
     return serviceName.toString();
   }
 
-  private static void lookupService(String serviceName) throws NamingException {
+  static String getBaseDn(String url) throws NamingException {
+    if (!url.startsWith("ldaps:///")) {
+      throw new NamingException("invalid ldaps URL: " + url + " expecting ldaps:///");
+    }
+    return url.substring("ldaps:///".length(), url.length());
+  }
+
+  private static List<DnsRecord> lookupServiceRecords(String[] domainComponents) throws NamingException {
     Hashtable<String, String> env = new Hashtable<>(4);
     env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.dns.DnsContextFactory");
     env.put(Context.PROVIDER_URL, "dns:");
     DirContext context = new InitialDirContext(env);
 
     try {
-      readFromContext(context, serviceName);
+      return readFromContext(context, domainComponents);
     } finally {
       context.close();
     }
   }
 
-  static List<DnsRecord> readFromContext(DirContext context, String serviceName) throws NamingException {
+  static List<DnsRecord> readFromContext(DirContext context, String[] domainComponents) throws NamingException {
+    String serviceName = toServiceName(domainComponents);
     Attributes attribues = context.getAttributes(serviceName, SERVICE_NAMES);
 
     List<DnsRecord> records = new ArrayList<>(attribues.size());
@@ -83,34 +111,35 @@ public final class SiteAwareLdapsProvider extends LdapDnsProvider {
     return records;
   }
 
-  static LdapDnsProviderResult toDnsProviderResult(String domainName, List<DnsRecord> records) {
-    return new LdapDnsProviderResult(domainName, convertToEndpoints(records));
+  static LdapDnsProviderResult toDnsProviderResult(String domainName, String baseDn, List<DnsRecord> records) {
+    List<String> endpoints = convertToEndpoints(records, baseDn);
+    return new LdapDnsProviderResult(domainName, endpoints);
   }
 
-  private static List<String> convertToEndpoints(List<DnsRecord> records) {
+  private static List<String> convertToEndpoints(List<DnsRecord> records, String baseDn) {
     if (records.isEmpty()) {
       return List.of();
     }
     int minPriority = getMinPriority(records);
-    return getRecordsWithPriorit(minPriority, records);
+    return getRecordsWithPriorit(minPriority, records, baseDn);
   }
 
-  private static List<String> getRecordsWithPriorit(int priority, List<DnsRecord> records) {
+  private static List<String> getRecordsWithPriorit(int priority, List<DnsRecord> records, String baseDn) {
     // REVIEW an argument can be made here that we should return either
     // - only one chosen by rand() considering the weight
     // - repetitions based on weight
     List<String> endpoints = new ArrayList<>(4);
     for (DnsRecord record : records) {
       if (record.getPriority() == priority) {
-        endpoints.add(convertToLdapsUrl(record));
+        endpoints.add(convertToLdapsUrl(record, baseDn));
       }
     }
     return endpoints;
   }
 
-  private static String convertToLdapsUrl(DnsRecord record) {
+  private static String convertToLdapsUrl(DnsRecord record, String baseDn) {
     String host = record.getHost();
-    return "ldaps://" + host + ':' + LDAPS_PORT;
+    return "ldaps://" + host + ':' + LDAPS_PORT + '/' + baseDn;
   }
 
   private static int getMinPriority(List<DnsRecord> records) {

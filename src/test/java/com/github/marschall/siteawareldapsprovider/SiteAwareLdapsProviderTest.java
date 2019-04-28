@@ -1,5 +1,6 @@
 package com.github.marschall.siteawareldapsprovider;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -23,8 +24,23 @@ import com.github.marschall.siteawareldapsprovider.SiteAwareLdapsProvider.DnsRec
 class SiteAwareLdapsProviderTest {
 
   @Test
+  void getBaseDn() throws NamingException {
+    assertEquals("dc=example,dc=com", SiteAwareLdapsProvider.getBaseDn("ldaps:///dc=example,dc=com"));
+  }
+
+  @Test
+  void getDomainComponents() throws NamingException {
+    assertArrayEquals(new String[] {"example", "com"}, SiteAwareLdapsProvider.getDomainComponents("dc=example,dc=com"));
+  }
+
+  @Test
+  void getDomainName() throws NamingException {
+    assertEquals("example.com", SiteAwareLdapsProvider.getDomainName(new String[] {"example", "com"}));
+  }
+
+  @Test
   void toServiceName() throws NamingException {
-    assertEquals("_ldap._tcp.example.com", SiteAwareLdapsProvider.toServiceName("ldaps:///dc=example,dc=com"));
+    assertEquals("_ldap._tcp.example.com", SiteAwareLdapsProvider.toServiceName(new String[] {"example", "com"}));
   }
 
   @Test
@@ -40,12 +56,13 @@ class SiteAwareLdapsProviderTest {
     attributes.put(srvAttribute);
 
     String serviceName = "_ldap._tcp.example.com";
+    String[] domainComponents = new String[] {"example", "com"};
     DirContext mockedContext = mock(DirContext.class);
 
     when(mockedContext.getAttributes(serviceName, new String[] { "SRV" }))
       .thenReturn(attributes);
 
-    List<DnsRecord> records = SiteAwareLdapsProvider.readFromContext(mockedContext, serviceName);
+    List<DnsRecord> records = SiteAwareLdapsProvider.readFromContext(mockedContext, domainComponents);
     assertEquals(4, records.size());
 
     DnsRecord record = records.get(0);
@@ -82,7 +99,8 @@ class SiteAwareLdapsProviderTest {
             DnsRecord.fromString("30 1 389 node4.example.com."));
 
     String domainName = "example.com";
-    LdapDnsProviderResult providerResult = SiteAwareLdapsProvider.toDnsProviderResult(domainName, records);
+    String baseDn = "dc=example,dc=com";
+    LdapDnsProviderResult providerResult = SiteAwareLdapsProvider.toDnsProviderResult(domainName, baseDn, records);
     assertEquals(domainName, providerResult.getDomainName());
     List<String> endpoints = providerResult.getEndpoints();
 
