@@ -84,12 +84,41 @@ public final class SiteAwareLdapsProvider extends LdapDnsProvider {
   }
 
   static LdapDnsProviderResult toDnsProviderResult(String domainName, List<DnsRecord> records) {
-    return new LdapDnsProviderResult(domainName, List.of());
+    return new LdapDnsProviderResult(domainName, convertToEndpoints(records));
   }
 
-  public static void main(String[] args) throws NamingException {
-    String serviceName = "_xmpp-server._tcp.gmail.com";
-    lookupService(serviceName);
+  private static List<String> convertToEndpoints(List<DnsRecord> records) {
+    if (records.isEmpty()) {
+      return List.of();
+    }
+    int minPriority = getMinPriority(records);
+    return getRecordsWithPriorit(minPriority, records);
+  }
+
+  private static List<String> getRecordsWithPriorit(int priority, List<DnsRecord> records) {
+    // REVIEW an argument can be made here that we should return either
+    // - only one chosen by rand() considering the weight
+    // - repetitions based on weight
+    List<String> endpoints = new ArrayList<>(4);
+    for (DnsRecord record : records) {
+      if (record.getPriority() == priority) {
+        endpoints.add(convertToLdapsUrl(record));
+      }
+    }
+    return endpoints;
+  }
+
+  private static String convertToLdapsUrl(DnsRecord record) {
+    String host = record.getHost();
+    return "ldaps://" + host + ':' + LDAPS_PORT;
+  }
+
+  private static int getMinPriority(List<DnsRecord> records) {
+    int minPriority = Integer.MAX_VALUE;
+    for (DnsRecord record : records) {
+      minPriority = Math.min(minPriority, record.getPriority());
+    }
+    return minPriority;
   }
 
   static final class DnsRecord {
@@ -118,6 +147,10 @@ public final class SiteAwareLdapsProvider extends LdapDnsProvider {
     }
 
     String getHost() {
+      // we need to extract the host name only for the hosts with the highest priority
+      if (this.host.endsWith(".")) {
+        return this.host.substring(0, this.host.length() - 1);
+      }
       return this.host;
     }
 
@@ -127,9 +160,6 @@ public final class SiteAwareLdapsProvider extends LdapDnsProvider {
       String weight = splitted[1];
       String port = splitted[2];
       String host = splitted[3];
-      if (host.endsWith(".")) {
-        host = host.substring(0, host.length() - 1);
-      }
       return new DnsRecord(
               Integer.parseInt(priority),
               Integer.parseInt(weight),

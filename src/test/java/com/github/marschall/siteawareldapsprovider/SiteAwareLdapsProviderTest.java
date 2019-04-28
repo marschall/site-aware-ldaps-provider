@@ -86,7 +86,7 @@ class SiteAwareLdapsProviderTest {
     assertEquals(domainName, providerResult.getDomainName());
     List<String> endpoints = providerResult.getEndpoints();
 
-    assertEquals(1, endpoints.size());
+    assertEquals(2, endpoints.size());
     String endpoint = endpoints.get(0);
     assertEquals("ldaps://node1.example.com:636/dc=example,dc=com", endpoint);
     endpoint = endpoints.get(1);
