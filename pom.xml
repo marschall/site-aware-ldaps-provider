@@ -98,11 +98,17 @@
         </executions>
       </plugin>
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-release-plugin</artifactId>
         <configuration>
           <mavenExecutorId>forked-path</mavenExecutorId>
           <arguments>-Pdeploy-to-sonatype-oss</arguments>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <useModulePath>false</useModulePath>
+          <forkCount>0</forkCount>
         </configuration>
       </plugin>
     </plugins>
@@ -154,7 +160,7 @@
         </plugin>
         <plugin>
           <artifactId>maven-surefire-plugin</artifactId>
-          <version>2.22.1</version>
+          <version>3.0.0-M3</version>
         </plugin>
       </plugins>
     </pluginManagement>
