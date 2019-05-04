@@ -1,6 +1,5 @@
 package com.github.marschall.siteawareldapsprovider;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -20,28 +19,9 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.github.marschall.siteawareldapsprovider.SiteAwareLdapsProvider.DnsRecord;
+import com.github.marschall.siteawareldapsprovider.SiteAwareLdapsProvider.DomainContextContext;
 
 class SiteAwareLdapsProviderTest {
-
-  @Test
-  void getBaseDn() throws NamingException {
-    assertEquals("dc=example,dc=com", SiteAwareLdapsProvider.getBaseDn("ldaps:///dc=example,dc=com"));
-  }
-
-  @Test
-  void getDomainComponents() throws NamingException {
-    assertArrayEquals(new String[] {"example", "com"}, SiteAwareLdapsProvider.getDomainComponents("dc=example,dc=com"));
-  }
-
-  @Test
-  void getDomainName() throws NamingException {
-    assertEquals("example.com", SiteAwareLdapsProvider.getDomainName(new String[] {"example", "com"}));
-  }
-
-  @Test
-  void toServiceName() throws NamingException {
-    assertEquals("_ldap._tcp.example.com", SiteAwareLdapsProvider.toServiceName(new String[] {"example", "com"}));
-  }
 
   @Test
   void readFromContext() throws NamingException {
@@ -55,14 +35,13 @@ class SiteAwareLdapsProviderTest {
     srvAttribute.add("30 1 389 node4.example.com.");
     attributes.put(srvAttribute);
 
-    String serviceName = "_ldap._tcp.example.com";
-    String[] domainComponents = new String[] {"example", "com"};
+    DomainContextContext domainContext = DomainContextContext.parse("ldaps:///dc=example,dc=com", null);
     DirContext mockedContext = mock(DirContext.class);
 
-    when(mockedContext.getAttributes(serviceName, new String[] { "SRV" }))
+    when(mockedContext.getAttributes(domainContext.getServiceName(), new String[] { "SRV" }))
       .thenReturn(attributes);
 
-    List<DnsRecord> records = SiteAwareLdapsProvider.readFromContext(mockedContext, domainComponents);
+    List<DnsRecord> records = SiteAwareLdapsProvider.readFromContext(domainContext, mockedContext);
     assertEquals(4, records.size());
 
     DnsRecord record = records.get(0);
@@ -98,10 +77,9 @@ class SiteAwareLdapsProviderTest {
             DnsRecord.fromString("20 1 389 node3.example.com."),
             DnsRecord.fromString("30 1 389 node4.example.com."));
 
-    String domainName = "example.com";
-    String baseDn = "dc=example,dc=com";
-    LdapDnsProviderResult providerResult = SiteAwareLdapsProvider.toDnsProviderResult(domainName, baseDn, records);
-    assertEquals(domainName, providerResult.getDomainName());
+    DomainContextContext domainContext = DomainContextContext.parse("ldaps:///dc=example,dc=com", null);
+    LdapDnsProviderResult providerResult = SiteAwareLdapsProvider.toDnsProviderResult(domainContext, records);
+    assertEquals(domainContext.getDomainName(), providerResult.getDomainName());
     List<String> endpoints = providerResult.getEndpoints();
 
     assertEquals(2, endpoints.size());
@@ -112,11 +90,56 @@ class SiteAwareLdapsProviderTest {
   }
 
   @Test
+  void lookupContexLdapstWithoutSite() throws NamingException {
+    DomainContextContext context = DomainContextContext.parse("ldaps:///dc=example,dc=com", null);
+    assertEquals("dc=example,dc=com", context.getBaseDn());
+    assertEquals("example.com", context.getDomainName());
+    assertEquals("_ldap._tcp.example.com", context.getServiceName());
+
+    DnsRecord record = DnsRecord.fromString("10 1 389 node1.example.com.");
+    assertEquals("ldaps://node1.example.com:636/dc=example,dc=com", context.convertToLdapUrl(record));
+  }
+
+  @Test
+  void lookupContexLdaptWithoutSite() throws NamingException {
+    DomainContextContext context = DomainContextContext.parse("ldap:///dc=example,dc=com", null);
+    assertEquals("dc=example,dc=com", context.getBaseDn());
+    assertEquals("example.com", context.getDomainName());
+    assertEquals("_ldap._tcp.example.com", context.getServiceName());
+
+    DnsRecord record = DnsRecord.fromString("10 1 389 node1.example.com.");
+    assertEquals("ldap://node1.example.com:389/dc=example,dc=com", context.convertToLdapUrl(record));
+  }
+
+  @Test
+  void lookupContexLdapstWithSite() throws NamingException {
+    DomainContextContext context = DomainContextContext.parse("ldaps:///dc=example,dc=com", "site-name");
+    assertEquals("dc=example,dc=com", context.getBaseDn());
+    assertEquals("example.com", context.getDomainName());
+    assertEquals("_ldap._tcp.site-name._sites.dc._msdcs.example.com", context.getServiceName());
+
+    DnsRecord record = DnsRecord.fromString("10 1 389 node1.example.com.");
+    assertEquals("ldaps://node1.example.com:636/dc=example,dc=com", context.convertToLdapUrl(record));
+  }
+
+  @Test
+  void lookupContexLdaptWithSite() throws NamingException {
+    DomainContextContext context = DomainContextContext.parse("ldap:///dc=example,dc=com", "site-name");
+    assertEquals("dc=example,dc=com", context.getBaseDn());
+    assertEquals("example.com", context.getDomainName());
+    assertEquals("_ldap._tcp.site-name._sites.dc._msdcs.example.com", context.getServiceName());
+
+    DnsRecord record = DnsRecord.fromString("10 1 389 node1.example.com.");
+    assertEquals("ldap://node1.example.com:389/dc=example,dc=com", context.convertToLdapUrl(record));
+  }
+
+  @Test
   @Disabled("network access")
   void test() throws NamingException {
     Hashtable<String, String> env = new Hashtable<>();
     env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
     env.put(Context.PROVIDER_URL, "ldap:///dc=example,dc=com");
+    env.put(ActiveDirectoryContext.SITE, "site-name");
     DirContext ctx = new InitialDirContext(env);
   }
 

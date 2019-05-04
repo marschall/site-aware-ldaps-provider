@@ -1,13 +1,28 @@
-Site aware LDAPS Provider
+Site-aware LDAPS Provider
 =========================
 
-Uses LDAP site awareness to provide LDAPS site awareness.
+Provides LDAPS site awareness.
 
-Usually no SRV records are provided for LDAPS, only for LDAP.
+ * [RFC 2782](https://tools.ietf.org/html/rfc2782) only mentions LDAP and not LDAPS
+ * Active Directory per default does not create SRV DNS records
+ * site-awareness is a proprietary Active Directory feature
 
 [JDK-8192975](https://bugs.openjdk.java.net/browse/JDK-8192975)
 
 Currently requires the JNDI DNS client and Java 12.
+
+Usage
+-----
+
+Put the JAR in the classpath or module path.
+
+```
+Hashtable<String, String> env = new Hashtable<>();
+env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+env.put(Context.PROVIDER_URL, "ldaps:///dc=example,dc=com"); // ldap also supported
+env.put(ActiveDirectoryContext.SITE, "site-name"); // optional
+DirContext ctx = new InitialDirContext(env);
+```
 
 WildFly
 -------
