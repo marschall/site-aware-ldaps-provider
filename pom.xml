@@ -123,8 +123,10 @@
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
-          <useModulePath>false</useModulePath>
-          <forkCount>0</forkCount>
+          <argLine>
+            --add-opens com.github.marschall.siteawareldapsprovider/com.github.marschall.siteawareldapsprovider=ALL-UNNAMED
+          </argLine>
+          <enableAssertions>true</enableAssertions>
         </configuration>
       </plugin>
     </plugins>
@@ -176,7 +178,8 @@
         </plugin>
         <plugin>
           <artifactId>maven-surefire-plugin</artifactId>
-          <version>2.22.2</version>
+          <!-- ASM version of 2.22.2 is too old -->
+          <version>3.0.0-M5</version>
         </plugin>
       </plugins>
     </pluginManagement>
