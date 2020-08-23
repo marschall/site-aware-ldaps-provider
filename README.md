@@ -9,7 +9,7 @@ Provides LDAPS site awareness.
 
 [JDK-8192975](https://bugs.openjdk.java.net/browse/JDK-8192975)
 
-Currently requires the JNDI DNS client and Java 12.
+Currently requires the [JNDI DNS client](https://docs.oracle.com/javase/8/docs/technotes/guides/jndi/jndi-dns.html) and Java 12.
 
 Usage
 -----
