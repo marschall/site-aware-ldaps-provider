@@ -16,7 +16,16 @@ Usage
 
 Put the JAR in the classpath or module path.
 
+
+```xml
+<dependency>
+  <groupId>com.github.marschall</groupId>
+  <artifactId>site-aware-ldaps-provider</artifactId>
+  <version>1.0.0</version>
+</dependency>
 ```
+
+```java
 Hashtable<String, String> env = new Hashtable<>();
 env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
 env.put(Context.PROVIDER_URL, "ldaps:///dc=example,dc=com"); // ldap also supported
