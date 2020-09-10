@@ -4,7 +4,7 @@ Site-aware LDAPS Provider
 Provides LDAPS site awareness.
 
  * [RFC 2782](https://tools.ietf.org/html/rfc2782) only mentions LDAP and not LDAPS
- * Active Directory per default does not create SRV DNS records
+ * Active Directory per default does not create SRV DNS records for LDAPS
  * site-awareness is a proprietary Active Directory feature
 
 [JDK-8192975](https://bugs.openjdk.java.net/browse/JDK-8192975)
